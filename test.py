@@ -36,5 +36,5 @@ pk, sk = ML_DSA_id_based.keygen()
 id = b"test_id"
 msg = b"acccccccccccccccccccccccccccccccccccccccddddssssssssssssssssssssssssssssdcccccccccccccccclcq"
 print("Message length: %s" % len(msg))
-sig = ML_DSA_id_based.sign(sk, msg, id)
-print("Signature valid:", ML_DSA_id_based.verify(pk, msg, sig, id))
+sig = ML_DSA_id_based.sign(sk, msg, id=id)
+print("Signature valid:", ML_DSA_id_based.verify(pk, msg, sig, id=id))

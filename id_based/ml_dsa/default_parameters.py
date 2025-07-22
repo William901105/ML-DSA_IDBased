@@ -11,9 +11,6 @@ DEFAULT_PARAMETERS = {
         "eta": 2,  # Private key range
         "omega": 80,  # Max number of ones in hint
         "c_tilde_bytes": 32,
-        "h1_bytes": 16,  # Size of h1 in bytes
-        "h2_bytes": 16,  # Size of h2 in bytes
-        "r_bytes": 32,  # Size of r in bytes
     },
     "ML_DSA_65": {
         "d": 13,  # number of bits dropped from t
@@ -25,9 +22,6 @@ DEFAULT_PARAMETERS = {
         "eta": 4,  # Private key range
         "omega": 55,  # Max number of ones in hint
         "c_tilde_bytes": 48,
-        "h1_bytes": 24,  # Size of h1 in bytes
-        "h2_bytes": 24,  # Size of h2 in bytes
-        "r_bytes": 48,  # Size of r in bytes
     },
     "ML_DSA_87": {
         "d": 13,  # number of bits dropped from t
@@ -39,9 +33,6 @@ DEFAULT_PARAMETERS = {
         "eta": 2,  # Private key range
         "omega": 75,  # Max number of ones in hint
         "c_tilde_bytes": 64,
-        "h1_bytes": 32,  # Size of h1 in bytes
-        "h2_bytes": 32,  # Size of h2 in bytes
-        "r_bytes": 64,  # Size of r in bytes
     },
 }
 

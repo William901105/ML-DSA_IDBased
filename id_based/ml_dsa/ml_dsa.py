@@ -215,38 +215,7 @@ class ML_DSA:
 
         return pk, sk
 
-    def BinaryToRing(self, binary):
-        coeffs = [0] * 256
-        coeffs[:len(binary)] = binary
-        return self.R(coeffs).to_ntt()
-
-    def OneOneMapping(self, h_value):
-        chunk = 256 // (self.k ** 2)
-
-        # k * k 條多項式
-        polys = [
-            self.BinaryToRing(h_value[i: i + chunk])
-            for i in range(0, 256, chunk)
-        ]
-
-        # Reshape 成 k-by-k matrix
-        matrix = [
-            polys[i * self.k: (i + 1) * self.k]
-            for i in range(self.k)
-        ]
-
-        return self.M(matrix)
-
-    def H(self, ID):
-        h_bytes = self._h(ID, 32)  # 256 bits = 32 bytes
-        h_value = []
-        for byte in h_bytes:
-            for bit in range(7, -1, -1):
-                h_value.append((byte >> bit) & 1)
-
-        return self.OneOneMapping(h_value)
-
-    def _sign_internal(self, sk_bytes, m, ID, rnd, external_mu=False):
+    def _sign_internal(self, sk_bytes, m, rnd, external_mu=False, id=b""):
         """
         Deterministic algorithm to generate a signature for a formatted message
         M' following Algorithm 7 (FIPS 204)
@@ -264,9 +233,6 @@ class ML_DSA:
 
         # Generate matrix A ∈ R^(kxl) in the NTT domain
         A_hat = self._expand_matrix_from_seed(rho)
-        M_hat = self.H(bytes(ID))
-        A_prime = M_hat @ A_hat
-        # print("A_prime = ", A_prime)
 
         # Set seeds and nonce (kappa)
         if external_mu:
@@ -280,8 +246,7 @@ class ML_DSA:
         while True:
             y = self._expand_mask_vector(rho_prime, kappa)
             y_hat = y.to_ntt()
-            # w = (A_hat @ y_hat).from_ntt()
-            w = (A_prime @ y_hat).from_ntt()
+            w = (A_hat @ y_hat).from_ntt()
 
             # increment the nonce
             kappa += self.l
@@ -298,6 +263,8 @@ class ML_DSA:
             # Create challenge polynomial
             w1_bytes = w1.bit_pack_w(self.gamma_2)
             c_tilde = self._h(mu + w1_bytes, self.c_tilde_bytes)
+            id = self._h(id, self.c_tilde_bytes)
+            c_tilde = self._h(c_tilde + id, self.c_tilde_bytes)  # to check id
             c = self.R.sample_in_ball(c_tilde, self.tau)
             c_hat = c.to_ntt()
 
@@ -323,7 +290,7 @@ class ML_DSA:
 
             return self._pack_sig(c_tilde, z, h)
 
-    def _verify_internal(self, pk_bytes, m, sig_bytes, ID):
+    def _verify_internal(self, pk_bytes, m, sig_bytes, id=b""):
         """
         Internal function to verify a signature sigma for a formatted message M'
         following Algorithm 8 (FIPS 204)
@@ -338,8 +305,6 @@ class ML_DSA:
             return False
 
         A_hat = self._expand_matrix_from_seed(rho)
-        M_hat = self.H(bytes(ID))
-        A_prime = M_hat @ A_hat
 
         tr = self._h(pk_bytes, 64)
         mu = self._h(tr + m, 64)
@@ -351,16 +316,16 @@ class ML_DSA:
 
         t1 = t1.scale(1 << self.d)
         t1 = t1.to_ntt()
-        t1_prime = M_hat @ t1
 
-        # Az_minus_ct1 = (A_hat @ z) - t1.scale(c)
-        Az_minus_ct1 = (A_prime @ z) - t1_prime.scale(c)
+        Az_minus_ct1 = (A_hat @ z) - t1.scale(c)
         Az_minus_ct1 = Az_minus_ct1.from_ntt()
 
         w_prime = h.use_hint(Az_minus_ct1, 2 * self.gamma_2)
         w_prime_bytes = w_prime.bit_pack_w(self.gamma_2)
 
-        return c_tilde == self._h(mu + w_prime_bytes, self.c_tilde_bytes)
+        id = self._h(id, self.c_tilde_bytes)
+
+        return c_tilde == self._h(self._h(mu + w_prime_bytes, self.c_tilde_bytes) + id, self.c_tilde_bytes)
 
     def keygen(self):
         """
@@ -388,7 +353,7 @@ class ML_DSA:
         pk, sk = self._keygen_internal(seed)
         return (pk, sk)
 
-    def sign(self, sk_bytes, m, ID, ctx=b"", deterministic=False):
+    def sign(self, sk_bytes, m, ctx=b"", deterministic=False, id=b""):
         """
         Generates an ML-DSA signature following
         Algorithm 2 (FIPS 204)
@@ -407,10 +372,10 @@ class ML_DSA:
         m_prime = bytes([0]) + bytes([len(ctx)]) + ctx + m
 
         # Compute the signature of m_prime
-        sig_bytes = self._sign_internal(sk_bytes, m_prime, ID, rnd)
+        sig_bytes = self._sign_internal(sk_bytes, m_prime, rnd, id=id)
         return sig_bytes
 
-    def verify(self, pk_bytes, m, sig_bytes, ID, ctx=b""):
+    def verify(self, pk_bytes, m, sig_bytes, ctx=b"", id=b""):
         """
         Verifies a signature sigma for a message M following
         Algorithm 3 (FIPS 204)
@@ -423,7 +388,7 @@ class ML_DSA:
         # Format the message using the context
         m_prime = bytes([0]) + bytes([len(ctx)]) + ctx + m
 
-        return self._verify_internal(pk_bytes, m_prime, sig_bytes, ID)
+        return self._verify_internal(pk_bytes, m_prime, sig_bytes, id=id)
 
     """
     The following external mu functions are not in FIPS 204, but are in
